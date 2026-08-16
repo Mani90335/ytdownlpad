@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FETCHR — Media Downloader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #c8ff00;
+    --accent2: #00d4ff;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --danger: #ff4466;
+    --radius: 4px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(200,255,0,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,255,0,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 56px;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(36px, 7vw, 72px);
+    font-weight: 700;
+    letter-spacing: -2px;
+    color: var(--accent);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-dot {
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.6; }
+  }
+
+  .tagline {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 10px;
+  }
+
+  /* URL Input */
+  .input-group {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.2s;
+    background: var(--surface);
+  }
+
+  .input-group:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 20px rgba(200,255,0,0.08);
+  }
+
+  #url-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 16px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    min-width: 0;
+  }
+
+  #url-input::placeholder { color: var(--muted); }
+
+  #fetch-btn {
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    padding: 16px 28px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  #fetch-btn:hover { background: #d4ff33; }
+  #fetch-btn:active { transform: scale(0.98); }
+  #fetch-btn:disabled { background: var(--muted); cursor: not-allowed; color: #888; }
+
+  /* Status / Error */
+  .status-bar {
+    margin-top: 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    min-height: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-bar.error { color: var(--danger); }
+  .status-bar.loading { color: var(--accent2); }
+  .status-bar.success { color: var(--accent); }
+
+  .spinner {
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgba(0,212,255,0.2);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Media info card */
+  #media-info {
+    margin-top: 36px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: none;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  #media-info.visible { display: flex; }
+
+  #media-thumb {
+    width: 100px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: var(--border);
+  }
+
+  .media-meta { flex: 1; min-width: 0; }
+
+  .media-title {
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1.3;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .media-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 5px;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-top: 36px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    padding: 10px 24px 12px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  /* Format list */
+  .formats-panel { display: none; padding-top: 20px; }
+  .formats-panel.active { display: block; }
+
+  .format-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+  }
+
+  .format-row:hover { border-color: var(--muted); background: #14141e; }
+
+  .format-row.selected {
+    border-color: var(--accent);
+    background: rgba(200,255,0,0.04);
+  }
+
+  .format-row.selected::after {
+    content: '✓';
+    position: absolute;
+    right: 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .fmt-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+    min-width: 48px;
+    text-align: center;
+  }
+
+  .fmt-badge.mp4 { background: rgba(0,212,255,0.12); color: var(--accent2); }
+  .fmt-badge.webm { background: rgba(200,255,0,0.1); color: var(--accent); }
+  .fmt-badge.m4a { background: rgba(255,150,0,0.12); color: #ff9600; }
+  .fmt-badge.opus { background: rgba(180,100,255,0.12); color: #c864ff; }
+  .fmt-badge.other { background: var(--border); color: var(--muted); }
+
+  .fmt-label {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fmt-meta {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .fmt-id {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    background: var(--border);
+    padding: 2px 6px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .empty-state {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 40px 0;
+    text-align: center;
+  }
+
+  /* Download bar */
+  #download-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 16px 24px;
+    z-index: 100;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 -20px 60px rgba(0,0,0,0.4);
+  }
+
+  #download-bar.visible { display: flex; }
+
+  .selected-label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .selected-label small {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: block;
+  }
+
+  .selected-label span {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .mp3-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .mp3-toggle input { accent-color: var(--accent); cursor: pointer; width: 14px; height: 14px; }
+  .mp3-toggle.hidden { display: none; }
+
+  #dl-btn {
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    padding: 13px 28px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+
+  #dl-btn:hover { background: #d4ff33; }
+  #dl-btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+  #dl-status {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--accent2);
+    flex-shrink: 0;
+    display: none;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    padding-top: 4px;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .container { padding: 32px 16px 100px; }
+    #media-info { flex-direction: column; }
+    #media-thumb { width: 100%; height: 160px; }
+    #download-bar { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">
+      <div class="logo-dot"></div>
+      FETCHR
+    </div>
+    <p class="tagline">Media Format Inspector &amp; Downloader</p>
+  </header>
+
+  <!-- URL Input -->
+  <div class="input-group">
+    <input id="url-input" type="url" placeholder="Paste a YouTube / media URL here…" autocomplete="off" spellcheck="false" />
+    <button id="fetch-btn">Inspect</button>
+  </div>
+  <div class="status-bar" id="status-bar"></div>
+
+  <!-- Media Info -->
+  <div id="media-info">
+    <img id="media-thumb" src="" alt="thumbnail" onerror="this.style.display='none'" />
+    <div class="media-meta">
+      <div class="media-title" id="media-title"></div>
+      <div class="media-sub" id="media-sub"></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs" style="display:none">
+    <button class="tab-btn active" data-tab="audio">🎵 Audio</button>
+    <button class="tab-btn" data-tab="video">🎬 Video</button>
+  </div>
+
+  <!-- Audio panel -->
+  <div class="formats-panel active" id="panel-audio">
+    <div class="section-label" id="audio-count"></div>
+    <div id="audio-list"></div>
+  </div>
+
+  <!-- Video panel -->
+  <div class="formats-panel" id="panel-video">
+    <div class="section-label" id="video-count"></div>
+    <div id="video-list"></div>
+  </div>
+
+</div>
+
+<!-- Download bar -->
+<div id="download-bar">
+  <div class="selected-label">
+    <small>Selected format</small>
+    <span id="dl-label">—</span>
+  </div>
+  <label class="mp3-toggle" id="mp3-toggle" title="Convert audio stream to MP3 using ffmpeg">
+    <input type="checkbox" id="mp3-check" /> Convert to MP3
+  </label>
+  <div id="dl-status">Downloading…</div>
+  <button id="dl-btn">↓ Download</button>
+</div>
+
+<script>
+  const API = "http://127.0.0.1:5000/api";
+  let selectedFormat = null;
+  let currentUrl = "";
+  let activeTab = "audio";
+
+  const urlInput = document.getElementById("url-input");
+  const fetchBtn = document.getElementById("fetch-btn");
+  const statusBar = document.getElementById("status-bar");
+  const mediaInfo = document.getElementById("media-info");
+  const tabs = document.getElementById("tabs");
+  const downloadBar = document.getElementById("download-bar");
+  const dlBtn = document.getElementById("dl-btn");
+  const dlLabel = document.getElementById("dl-label");
+  const dlStatus = document.getElementById("dl-status");
+  const mp3Toggle = document.getElementById("mp3-toggle");
+  const mp3Check = document.getElementById("mp3-check");
+
+  function setStatus(msg, type = "") {
+    statusBar.className = `status-bar ${type}`;
+    statusBar.innerHTML = type === "loading"
+      ? `<div class="spinner"></div><span>${msg}</span>`
+      : msg;
+  }
+
+  function badgeClass(ext) {
+    return ["mp4","webm","m4a","opus"].includes(ext) ? ext : "other";
+  }
+
+  function renderFormats(formats, type) {
+    const container = document.getElementById(`${type}-list`);
+    const countEl = document.getElementById(`${type}-count`);
+    container.innerHTML = "";
+
+    if (!formats || formats.length === 0) {
+      countEl.textContent = "";
+      container.innerHTML = `<div class="empty-state">No ${type} formats found</div>`;
+      return;
+    }
+
+    countEl.textContent = `${formats.length} format${formats.length > 1 ? "s" : ""} available`;
+
+    formats.forEach(fmt => {
+      const row = document.createElement("div");
+      row.className = "format-row";
+      row.dataset.id = fmt.id;
+      row.dataset.type = type;
+      row.dataset.label = fmt.label;
+
+      row.innerHTML = `
+        <span class="fmt-badge ${badgeClass(fmt.ext)}">${fmt.ext}</span>
+        <span class="fmt-label">${fmt.label}</span>
+        <span class="fmt-meta">${fmt.size || ""}</span>
+        <span class="fmt-id">${fmt.id}</span>
+      `;
+
+      row.addEventListener("click", () => selectFormat(row, fmt, type));
+      container.appendChild(row);
+    });
+  }
+
+  function selectFormat(row, fmt, type) {
+    // Deselect all
+    document.querySelectorAll(".format-row").forEach(r => r.classList.remove("selected"));
+    row.classList.add("selected");
+
+    selectedFormat = { ...fmt, type };
+    dlLabel.textContent = fmt.label;
+    downloadBar.classList.add("visible");
+
+    // Show MP3 toggle only for audio
+    mp3Toggle.className = type === "audio" ? "mp3-toggle" : "mp3-toggle hidden";
+  }
+
+  fetchBtn.addEventListener("click", fetchFormats);
+  urlInput.addEventListener("keydown", e => { if (e.key === "Enter") fetchFormats(); });
+
+  async function fetchFormats() {
+    const url = urlInput.value.trim();
+    if (!url) { setStatus("Please paste a URL first.", "error"); return; }
+
+    currentUrl = url;
+    selectedFormat = null;
+    downloadBar.classList.remove("visible");
+    mediaInfo.classList.remove("visible");
+    tabs.style.display = "none";
+    document.getElementById("audio-list").innerHTML = "";
+    document.getElementById("video-list").innerHTML = "";
+    fetchBtn.disabled = true;
+    setStatus("Fetching available formats…", "loading");
+
+    try {
+      const res = await fetch(`${API}/formats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setStatus(`Error: ${data.error || "Failed to fetch formats"}`, "error");
+        return;
+      }
+
+      setStatus(
+        `Found ${data.audio?.length || 0} audio + ${data.video?.length || 0} video formats`,
+        "success"
+      );
+
+      // Show media info
+      if (data.title) {
+        document.getElementById("media-title").textContent = data.title;
+        document.getElementById("media-sub").textContent =
+          [data.uploader, data.duration].filter(Boolean).join(" · ");
+        if (data.thumbnail) {
+          const thumb = document.getElementById("media-thumb");
+          thumb.src = data.thumbnail;
+          thumb.style.display = "";
+        }
+        mediaInfo.classList.add("visible");
+      }
+
+      tabs.style.display = "flex";
+      renderFormats(data.audio, "audio");
+      renderFormats(data.video, "video");
+
+    } catch (err) {
+      setStatus(`Could not reach server. Is server.py running? (${err.message})`, "error");
+    } finally {
+      fetchBtn.disabled = false;
+    }
+  }
+
+  // Tab switching
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeTab = btn.dataset.tab;
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".formats-panel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(`panel-${activeTab}`).classList.add("active");
+    });
+  });
+
+  // Download
+  dlBtn.addEventListener("click", async () => {
+    if (!selectedFormat || !currentUrl) return;
+
+    dlBtn.disabled = true;
+    dlStatus.style.display = "block";
+    dlStatus.textContent = "Downloading…";
+
+    try {
+      const res = await fetch(`${API}/download`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: currentUrl,
+          format_id: selectedFormat.id,
+          type: selectedFormat.type,
+          convert_mp3: selectedFormat.type === "audio" && mp3Check.checked,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        dlStatus.style.color = "var(--accent)";
+        dlStatus.textContent = "✓ Saved to ~/Downloads";
+        setTimeout(() => { dlStatus.style.display = "none"; dlStatus.style.color = ""; }, 4000);
+      } else {
+        dlStatus.style.color = "var(--danger)";
+        dlStatus.textContent = `✗ ${data.error}`;
+      }
+    } catch (err) {
+      dlStatus.style.color = "var(--danger)";
+      dlStatus.textContent = `✗ Server error: ${err.message}`;
+    } finally {
+      dlBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
