@@ -9,6 +9,7 @@ echo ""
 
 # Run the python server
 python3 server.py
+#testing changes
 
 # Keep the terminal window open if the server crashes or exits
 echo ""
